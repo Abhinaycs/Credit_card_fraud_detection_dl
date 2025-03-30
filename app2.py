@@ -47,7 +47,7 @@ st.markdown("""
 - Recall: 98%+
 """)
 
-st.image('A:\Major_project_code\_- visual selection (1).png', caption='Model Architecture', use_column_width=True)
+st.image('- visual selection (1).png', caption='Model Architecture', use_column_width=True)
 
 # File uploader
 uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
