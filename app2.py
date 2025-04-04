@@ -15,7 +15,7 @@ st.set_page_config(
 # Load the saved model and scaler
 @st.cache_resource
 def load_model():
-    return tf.keras.models.load_model('fraud_detection_model (6).keras')
+    return tf.keras.models.load_model('fraud_detection_model.keras')
 
 @st.cache_resource
 def load_scaler():
