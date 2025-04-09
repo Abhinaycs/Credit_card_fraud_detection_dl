@@ -41,6 +41,7 @@ def main():
         Accuracy: 0.999663
         
         Macro Average:
+        
         Precision: 0.918367
         
         Recall: 0.999831
@@ -48,6 +49,7 @@ def main():
         F1-Score: 0.955471
 
         Weighted Average:
+        
         Precision: 0.999718
         
         Recall: 0.999663
