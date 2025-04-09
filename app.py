@@ -38,9 +38,17 @@ def main():
         - Sigmoid Output
         
         ### Performance Metrics
-        - Accuracy: 99.5%+
-        - Precision: 97%+
-        - Recall: 98%+
+        Accuracy: 0.999663
+        
+        Macro Average:
+        Precision: 0.918367
+        Recall: 0.999831
+        F1-Score: 0.955471
+
+        Weighted Average:
+        Precision: 0.999718
+        Recall: 0.999663
+        F1-Score: 0.999678
         """)
         
         # Add a placeholder for the model architecture image
