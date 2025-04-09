@@ -42,12 +42,16 @@ def main():
         
         Macro Average:
         Precision: 0.918367
+        
         Recall: 0.999831
+        
         F1-Score: 0.955471
 
         Weighted Average:
         Precision: 0.999718
+        
         Recall: 0.999663
+        
         F1-Score: 0.999678
         """)
         
