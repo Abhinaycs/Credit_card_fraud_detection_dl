@@ -5,4 +5,4 @@ tensorflow>=2.8.0
 imbalanced-learn>=0.8.0
 streamlit>=1.10.0
 matplotlib>=3.4.3
-seaborn>=0.11.2 
+seaborn>=0.11.2
