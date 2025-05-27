@@ -8,6 +8,7 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, LSTM, Bidirectional, Dropout
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 import os
+import h5py
 
 class FraudDetectionModel:
     def __init__(self):
@@ -66,7 +67,7 @@ class FraudDetectionModel:
         """Train the model with callbacks."""
         callbacks = [
             ModelCheckpoint(
-                'bilstm_fraud_detection.keras',
+                'bilstm_fraud_detection.h5',  # Changed to .h5 format
                 monitor='val_loss',
                 save_best_only=True,
                 mode='min'
@@ -104,16 +105,36 @@ class FraudDetectionModel:
         
         return self.model.predict(X_reshaped)
     
-    def save_model(self, path='bilstm_fraud_detection.keras'):
+    def save_model(self, path='bilstm_fraud_detection.h5'):  # Changed to .h5 format
         """Save the model and scaler."""
         if self.model is not None:
-            self.model.save(path)
+            self.model.save(path, save_format='h5')  # Explicitly specify h5 format
             np.save('scaler.npy', self.scaler)
     
-    def load_model(self, path='bilstm_fraud_detection.keras'):
+    def load_model(self, path='bilstm_fraud_detection.h5'):  # Changed to .h5 format
         """Load the model and scaler."""
-        if os.path.exists(path):
-            self.model = load_model(path)
-            self.scaler = np.load('scaler.npy', allow_pickle=True).item()
-            return True
-        return False 
+        try:
+            if os.path.exists(path):
+                # Try loading with custom_objects to handle any custom layers
+                custom_objects = {
+                    'Bidirectional': Bidirectional,
+                    'LSTM': LSTM,
+                    'Dense': Dense,
+                    'Dropout': Dropout
+                }
+                self.model = load_model(path, custom_objects=custom_objects)
+                
+                # Load the scaler
+                scaler_path = 'scaler.npy'
+                if os.path.exists(scaler_path):
+                    self.scaler = np.load(scaler_path, allow_pickle=True).item()
+                else:
+                    print("Warning: Scaler file not found")
+                
+                return True
+            else:
+                print(f"Model file not found at {path}")
+                return False
+        except Exception as e:
+            print(f"Error loading model: {str(e)}")
+            return False 
