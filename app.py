@@ -7,6 +7,7 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
 import io
 from PIL import Image
+import os
 
 # Set page config
 st.set_page_config(
@@ -26,10 +27,26 @@ if 'predictions' not in st.session_state:
 @st.cache_resource
 def load_model():
     """Cache the model loading to prevent reloading on every interaction"""
-    model = FraudDetectionModel()
-    if model.load_model():
-        return model
-    return None
+    try:
+        model = FraudDetectionModel()
+        model_path = 'bilstm_fraud_detection.h5'
+        scaler_path = 'scaler.npy'
+        
+        # Check if model files exist
+        if not os.path.exists(model_path):
+            st.error(f"Model file not found at {model_path}")
+            return None
+        if not os.path.exists(scaler_path):
+            st.error(f"Scaler file not found at {scaler_path}")
+            return None
+            
+        if model.load_model():
+            st.success("Model loaded successfully!")
+            return model
+        return None
+    except Exception as e:
+        st.error(f"Error loading model: {str(e)}")
+        return None
 
 def process_data_in_batches(df, batch_size=1000):
     """Process data in batches to prevent memory issues"""
@@ -65,7 +82,10 @@ def main():
         """)
         
         # Add a placeholder for the model architecture image
-        st.image("model_architecture.png", caption="BiLSTM Model Architecture", use_column_width=True)
+        try:
+            st.image("model_architecture.png", caption="BiLSTM Model Architecture", use_column_width=True)
+        except Exception as e:
+            st.warning("Model architecture image not found")
 
     # Main content
     st.title("Credit Card Fraud Detection System")
@@ -76,7 +96,13 @@ def main():
         with st.spinner("Loading model..."):
             st.session_state.model = load_model()
             if st.session_state.model is None:
-                st.error("Model not found. Please train the model first.")
+                st.error("""
+                Model not found. Please ensure the following files are present in your repository:
+                - bilstm_fraud_detection.h5
+                - scaler.npy
+                
+                If you're deploying on Streamlit Cloud, make sure these files are included in your GitHub repository.
+                """)
                 return
     
     # File upload
