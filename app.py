@@ -1,95 +1,122 @@
-import numpy as np
+import streamlit as st
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from imblearn.over_sampling import SMOTE
-import tensorflow as tf
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense, LSTM, Bidirectional, Dropout
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
-import os
-import h5py
+import numpy as np
+from model import FraudDetectionModel
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, classification_report
 
-class FraudDetectionModel:
-    def __init__(self):
-        self.scaler = StandardScaler()
-        self.model = None
-        
-    def preprocess_data(self, df):
-        df = df.drop_duplicates().dropna()
-        X = df.drop('Class', axis=1)
-        y = df['Class']
-        X_scaled = self.scaler.fit_transform(X)
-        X_reshaped = X_scaled.reshape(X_scaled.shape[0], 1, X_scaled.shape[1])
-        return X_reshaped, y
-    
-    def balance_data(self, X, y):
-        smote = SMOTE(random_state=42)
-        X_flattened = X.reshape(X.shape[0], X.shape[2])
-        X_balanced, y_balanced = smote.fit_resample(X_flattened, y)
-        X_balanced = X_balanced.reshape(X_balanced.shape[0], 1, X_balanced.shape[1])
-        return X_balanced, y_balanced
-    
-    def build_model(self, input_shape):
-        model = Sequential([
-            Bidirectional(LSTM(64, return_sequences=True), input_shape=input_shape),
-            Dropout(0.3),
-            Bidirectional(LSTM(32)),
-            Dropout(0.3),
-            Dense(16, activation='relu'),
-            Dense(1, activation='sigmoid')
-        ])
-        model.compile(
-            optimizer='adam',
-            loss='binary_crossentropy',
-            metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()]
-        )
-        self.model = model
+st.set_page_config(page_title="Credit Card Fraud Detection", layout="wide")
+
+def load_model():
+    model = FraudDetectionModel()
+    if model.load_model():
         return model
-    
-    def train(self, X_train, y_train, X_val, y_val, epochs=50, batch_size=32):
-        callbacks = [
-            ModelCheckpoint('bilstm_fraud_detection.h5', monitor='val_loss', save_best_only=True, mode='min'),
-            EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-        ]
-        return self.model.fit(X_train, y_train, validation_data=(X_val, y_val),
-                              epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1)
+    return None
 
-    def predict(self, X):
-        if self.model is None:
-            raise ValueError("Model not trained or loaded")
-        
-        # Scale and reshape input
-        if len(X.shape) == 2:  # (samples, features)
-            X_scaled = self.scaler.transform(X)
-            X = X_scaled.reshape(X_scaled.shape[0], 1, X_scaled.shape[1])
-        elif len(X.shape) == 3:  # (samples, 1, features)
-            X_flattened = X.reshape(X.shape[0], X.shape[2])
-            X_scaled = self.scaler.transform(X_flattened)
-            X = X_scaled.reshape(X_scaled.shape[0], 1, X_scaled.shape[1])
-        else:
-            raise ValueError("Input data has incorrect shape")
+def plot_confusion_matrix(y_true, y_pred):
+    cm = confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    plt.title('Confusion Matrix')
+    plt.ylabel('True Label')
+    plt.xlabel('Predicted Label')
+    return plt
 
-        return self.model.predict(X)
-    
-    def save_model(self, path='bilstm_fraud_detection.h5'):
-        if self.model:
-            self.model.save(path, save_format='h5')
-            np.save('scaler.npy', self.scaler)
+def main():
+    with st.sidebar:
+        st.title("Model Information")
+        st.markdown("""
+        ### Model Architecture
+        - BiLSTM Layers with Dropout
+        - Dense Final Layers
+        - Sigmoid Output
 
-    def load_model(self, path='bilstm_fraud_detection.h5'):
+        ### Performance Metrics
+        Accuracy: 0.999663
+
+        Macro Avg:
+        - Precision: 0.918
+        - Recall: 0.999
+        - F1: 0.955
+
+        Weighted Avg:
+        - Precision: 0.9997
+        - Recall: 0.9996
+        - F1: 0.9997
+        """)
+        st.image("model_architecture.png", caption="BiLSTM Model Architecture", use_column_width=True)
+
+    st.title("Credit Card Fraud Detection System")
+    st.write("Upload a CSV file with features like Time, Amount, V1-V28 (without 'Class').")
+
+    model = load_model()
+    if model is None:
+        st.error("Model not found. Please train and save the model first.")
+        return
+
+    uploaded_file = st.file_uploader("Upload CSV", type="csv")
+
+    if uploaded_file is not None:
         try:
-            if os.path.exists(path):
-                self.model = load_model(path)
-                scaler_path = 'scaler.npy'
-                if os.path.exists(scaler_path):
-                    self.scaler = np.load(scaler_path, allow_pickle=True).item()
-                else:
-                    print("Warning: Scaler file not found")
-                return True
+            df = pd.read_csv(uploaded_file)
+            st.subheader("Data Preview")
+            st.dataframe(df.head())
+
+            expected_features = 30  # V1-V28, Time, Amount
+            if len(df.columns) != expected_features and 'Class' not in df.columns:
+                st.error(f"Data must have exactly {expected_features} columns (V1-V28, Time, Amount).")
+                return
+
+            if 'Class' in df.columns:
+                y_true = df['Class']
+                df = df.drop('Class', axis=1)
             else:
-                print(f"Model file not found at {path}")
-                return False
+                y_true = None
+
+            col1, col2 = st.columns(2)
+            with col1:
+                threshold = st.slider("Fraud Detection Threshold", 0.0, 1.0, 0.5, 0.01)
+
+            with col2:
+                st.write("Real-time Fraud Detection Visualization")
+
+            if st.button("Detect Fraud"):
+                with st.spinner("Processing..."):
+                    predictions_prob = model.predict(df.values)
+                    predictions = (predictions_prob > threshold).astype(int)
+
+                    results_df = df.copy()
+                    results_df['Fraud_Probability'] = predictions_prob
+                    results_df['Fraud_Prediction'] = predictions
+
+                    tab1, tab2, tab3 = st.tabs(["Results", "Evaluation", "Download"])
+
+                    with tab1:
+                        st.subheader("Detection Results")
+                        st.dataframe(results_df)
+                        fraud_counts = results_df['Fraud_Prediction'].value_counts()
+                        fig, ax = plt.subplots(figsize=(6, 6))
+                        ax.pie(fraud_counts, labels=['Normal', 'Fraud'], autopct='%1.1f%%')
+                        ax.set_title('Prediction Distribution')
+                        st.pyplot(fig)
+
+                    with tab2:
+                        if y_true is not None:
+                            st.subheader("Model Evaluation")
+                            fig = plot_confusion_matrix(y_true, predictions)
+                            st.pyplot(fig)
+                            report = classification_report(y_true, predictions, output_dict=True)
+                            st.dataframe(pd.DataFrame(report).transpose())
+                        else:
+                            st.info("Ground truth labels not provided for evaluation.")
+
+                    with tab3:
+                        csv = results_df.to_csv(index=False)
+                        st.download_button("Download Results", data=csv, file_name="fraud_results.csv", mime="text/csv")
+
         except Exception as e:
-            print(f"Error loading model: {str(e)}")
-            return False
+            st.error(f"Error processing file: {str(e)}")
+
+if __name__ == "__main__":
+    main()
