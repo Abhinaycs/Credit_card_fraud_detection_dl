@@ -28,34 +28,37 @@ def main():
         st.title("Model Information")
         st.markdown("""
         ### Model Architecture
-        - BiLSTM Layers with Dropout
-        - Dense Final Layers
+        - 7 Hidden Layers (128 → 64 → 32 → 16 → 8 → 4 → 2 neurons)
+        - LeakyReLU Activation
+        - Batch Normalization
+        - Dropout Regularization
         - Sigmoid Output
-
+        
         ### Performance Metrics
         Accuracy: 0.999663
+        
+        Macro Average:
+        - Precision: 0.918367
+        - Recall: 0.999831
+        - F1-Score: 0.955471
 
-        Macro Avg:
-        - Precision: 0.918
-        - Recall: 0.999
-        - F1: 0.955
-
-        Weighted Avg:
-        - Precision: 0.9997
-        - Recall: 0.9996
-        - F1: 0.9997
+        Weighted Average:
+        - Precision: 0.999718
+        - Recall: 0.999663
+        - F1-Score: 0.999678
         """)
+
         st.image("model_architecture.png", caption="BiLSTM Model Architecture", use_column_width=True)
 
     st.title("Credit Card Fraud Detection System")
-    st.write("Upload a CSV file with features like Time, Amount, V1-V28 (without 'Class').")
-
+    st.write("Upload a CSV file containing credit card transaction data for fraud detection.")
+    
     model = load_model()
     if model is None:
-        st.error("Model not found. Please train and save the model first.")
+        st.error("Model not found. Please make sure 'bilstm_fraud_detection.h5' and 'scaler.npy' are in the repository.")
         return
 
-    uploaded_file = st.file_uploader("Upload CSV", type="csv")
+    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 
     if uploaded_file is not None:
         try:
@@ -63,23 +66,22 @@ def main():
             st.subheader("Data Preview")
             st.dataframe(df.head())
 
-            expected_features = 30  # V1-V28, Time, Amount
-            if len(df.columns) != expected_features and 'Class' not in df.columns:
-                st.error(f"Data must have exactly {expected_features} columns (V1-V28, Time, Amount).")
-                return
-
             if 'Class' in df.columns:
                 y_true = df['Class']
                 df = df.drop('Class', axis=1)
             else:
                 y_true = None
 
+            if df.shape[1] != 30:
+                st.error("CSV must contain 30 feature columns (Time, V1–V28, Amount).")
+                return
+
             col1, col2 = st.columns(2)
             with col1:
                 threshold = st.slider("Fraud Detection Threshold", 0.0, 1.0, 0.5, 0.01)
 
             with col2:
-                st.write("Real-time Fraud Detection Visualization")
+                st.write("Real-time Fraud Detection Visualization (optional)")
 
             if st.button("Detect Fraud"):
                 with st.spinner("Processing..."):
@@ -95,10 +97,11 @@ def main():
                     with tab1:
                         st.subheader("Detection Results")
                         st.dataframe(results_df)
+
                         fraud_counts = results_df['Fraud_Prediction'].value_counts()
                         fig, ax = plt.subplots(figsize=(6, 6))
                         ax.pie(fraud_counts, labels=['Normal', 'Fraud'], autopct='%1.1f%%')
-                        ax.set_title('Prediction Distribution')
+                        ax.set_title('Distribution of Predictions')
                         st.pyplot(fig)
 
                     with tab2:
@@ -106,15 +109,21 @@ def main():
                             st.subheader("Model Evaluation")
                             fig = plot_confusion_matrix(y_true, predictions)
                             st.pyplot(fig)
+
                             report = classification_report(y_true, predictions, output_dict=True)
-                            st.dataframe(pd.DataFrame(report).transpose())
+                            report_df = pd.DataFrame(report).transpose()
+                            st.dataframe(report_df)
                         else:
-                            st.info("Ground truth labels not provided for evaluation.")
+                            st.info("No ground truth labels available for evaluation.")
 
                     with tab3:
                         csv = results_df.to_csv(index=False)
-                        st.download_button("Download Results", data=csv, file_name="fraud_results.csv", mime="text/csv")
-
+                        st.download_button(
+                            label="Download Results",
+                            data=csv,
+                            file_name="fraud_detection_results.csv",
+                            mime="text/csv"
+                        )
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
 
