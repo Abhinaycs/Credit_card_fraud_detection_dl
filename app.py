@@ -8,13 +8,34 @@ from sklearn.metrics import confusion_matrix, classification_report
 import io
 from PIL import Image
 
-st.set_page_config(page_title="Credit Card Fraud Detection", layout="wide")
+# Set page config
+st.set_page_config(
+    page_title="Credit Card Fraud Detection",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
+# Initialize session state
+if 'model' not in st.session_state:
+    st.session_state.model = None
+if 'data' not in st.session_state:
+    st.session_state.data = None
+if 'predictions' not in st.session_state:
+    st.session_state.predictions = None
+
+@st.cache_resource
 def load_model():
+    """Cache the model loading to prevent reloading on every interaction"""
     model = FraudDetectionModel()
     if model.load_model():
         return model
     return None
+
+def process_data_in_batches(df, batch_size=1000):
+    """Process data in batches to prevent memory issues"""
+    total_rows = len(df)
+    for i in range(0, total_rows, batch_size):
+        yield df.iloc[i:min(i + batch_size, total_rows)]
 
 def plot_confusion_matrix(y_true, y_pred):
     cm = confusion_matrix(y_true, y_pred)
@@ -31,30 +52,16 @@ def main():
         st.title("Model Information")
         st.markdown("""
         ### Model Architecture
-        - 7 Hidden Layers (128 → 64 → 32 → 16 → 8 → 4 → 2 neurons)
-        - LeakyReLU Activation
-        - Batch Normalization
+        - BiLSTM with 64 and 32 units
         - Dropout Regularization
+        - Dense layers with ReLU activation
         - Sigmoid Output
         
         ### Performance Metrics
         Accuracy: 0.999663
-        
-        Macro Average:
-        
         Precision: 0.918367
-        
         Recall: 0.999831
-        
         F1-Score: 0.955471
-
-        Weighted Average:
-        
-        Precision: 0.999718
-        
-        Recall: 0.999663
-        
-        F1-Score: 0.999678
         """)
         
         # Add a placeholder for the model architecture image
@@ -64,19 +71,23 @@ def main():
     st.title("Credit Card Fraud Detection System")
     st.write("Upload a CSV file containing credit card transaction data for fraud detection.")
     
-    # Initialize model
-    model = load_model()
-    if model is None:
-        st.error("Model not found. Please train the model first.")
-        return
+    # Initialize model if not already loaded
+    if st.session_state.model is None:
+        with st.spinner("Loading model..."):
+            st.session_state.model = load_model()
+            if st.session_state.model is None:
+                st.error("Model not found. Please train the model first.")
+                return
     
     # File upload
     uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
     
     if uploaded_file is not None:
         try:
-            # Read the data
-            df = pd.read_csv(uploaded_file)
+            # Read the data with progress bar
+            with st.spinner("Loading data..."):
+                df = pd.read_csv(uploaded_file)
+                st.session_state.data = df
             
             # Display data preview
             st.subheader("Data Preview")
@@ -103,16 +114,23 @@ def main():
                 threshold = st.slider("Fraud Detection Threshold", 0.0, 1.0, 0.5, 0.01)
             
             with col2:
-                # Add a placeholder for real-time visualization
                 st.write("Real-time Fraud Detection Visualization")
-                # You can add a real-time chart here if needed
             
             # Make predictions
             if st.button("Detect Fraud"):
                 with st.spinner("Processing..."):
-                    # Get predictions
-                    predictions_prob = model.predict(df.values)
+                    # Process data in batches
+                    all_predictions = []
+                    progress_bar = st.progress(0)
+                    
+                    for i, batch_df in enumerate(process_data_in_batches(df)):
+                        batch_predictions = st.session_state.model.predict(batch_df.values)
+                        all_predictions.extend(batch_predictions)
+                        progress_bar.progress((i + 1) * batch_size / len(df))
+                    
+                    predictions_prob = np.array(all_predictions)
                     predictions = (predictions_prob > threshold).astype(int)
+                    st.session_state.predictions = predictions
                     
                     # Create results dataframe
                     results_df = df.copy()
